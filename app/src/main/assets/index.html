@@ -13,23 +13,41 @@ header{background:#10233f;color:white;padding:22px 18px 25px;border-radius:0 0 2
 .brand{font-size:25px;font-weight:800}
 .sub{font-size:13px;color:#cbd5e1;margin-top:8px}
 nav{display:flex;gap:10px;margin-top:20px}
-button{border:0;border-radius:13px;padding:13px 17px;font-size:15px;background:#e5edf7;color:#17243a}
+button{border:0;border-radius:13px;padding:13px 17px;font-size:15px;background:#e5edf7;color:#17243a;cursor:pointer}
 button.active{background:#16a36a;color:white}
 main{padding:16px}
 .datebar{display:flex;align-items:center;justify-content:space-between;margin:12px 0 18px;gap:8px}
 .datebar button{font-size:20px;padding:10px 16px}
 input{border:1px solid #d8e0eb;border-radius:12px;padding:11px;font-size:15px;background:white;color:#17243a;min-width:0}
-.info,.match,.empty{background:white;border:1px solid #dce4ee;border-radius:20px;padding:17px;margin-bottom:13px}
-.info{font-size:13px;color:#64748b}
+.filters{display:flex;gap:7px;overflow-x:auto;padding:3px 0 14px}
+.filters button{white-space:nowrap;padding:10px 14px;font-size:13px}
+.filters button.active{background:#10233f;color:white}
+.info,.match,.empty,.detailbox{background:white;border:1px solid #dce4ee;border-radius:20px;padding:17px;margin-bottom:13px}
+.info{font-size:13px;color:#64748b;line-height:1.6}
+.match{cursor:pointer;transition:transform .12s}
+.match:active{transform:scale(.99)}
 .matchtop{display:flex;justify-content:space-between;gap:8px;color:#64748b;font-size:13px;margin-bottom:15px}
 .teams{font-size:17px;font-weight:700;line-height:1.5}
 .score{font-size:23px;font-weight:800;margin-top:8px}
 .status{font-size:12px;font-weight:700;color:#16875c}
 .status.live{color:#d32f2f}
 .time{font-size:13px;color:#64748b;margin-top:9px}
-.empty{text-align:center;color:#64748b;padding:30px 18px}
+.empty{text-align:center;color:#64748b;padding:30px 18px;line-height:1.6}
 .footer{text-align:center;color:#64748b;font-size:12px;padding:20px}
 a{color:#16875c}
+.detailhead{display:flex;align-items:center;gap:10px;margin:8px 0 16px}
+.detailhead button{padding:10px 14px}
+.detailtitle{font-size:20px;font-weight:800;line-height:1.4}
+.detailteams{text-align:center;padding:18px 5px}
+.detailteams .names{font-size:18px;font-weight:700;line-height:1.5}
+.detailteams .bigscore{font-size:32px;font-weight:800;margin:12px}
+.sectiontitle{font-size:16px;font-weight:800;margin:20px 0 10px}
+.datarow{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #edf1f6;font-size:14px}
+.datarow:last-child{border-bottom:0}
+.datarow span:first-child{color:#64748b}
+.datarow span:last-child{text-align:right;font-weight:600;overflow-wrap:anywhere}
+.smallnote{font-size:12px;color:#64748b;line-height:1.5}
+.loading{padding:28px;text-align:center;color:#64748b}
 </style>
 </head>
 <body>
@@ -43,33 +61,54 @@ a{color:#16875c}
 </header>
 
 <main>
-  <div class="datebar">
-    <button onclick="moveDate(-1)">‹</button>
-    <input id="date" type="date">
-    <button onclick="moveDate(1)">›</button>
+  <div id="listPage">
+    <div class="datebar">
+      <button onclick="moveDate(-1)">‹</button>
+      <input id="date" type="date">
+      <button onclick="moveDate(1)">›</button>
+    </div>
+
+    <div class="filters">
+      <button class="active" data-filter="all" onclick="changeFilter('all')">Tümü</button>
+      <button data-filter="live" onclick="changeFilter('live')">🔴 Canlı</button>
+      <button data-filter="upcoming" onclick="changeFilter('upcoming')">Yaklaşan</button>
+      <button data-filter="finished" onclick="changeFilter('finished')">Biten</button>
+    </div>
+
+    <div class="info" id="info">Maç verileri yükleniyor...</div>
+    <div id="matches"></div>
+    <button onclick="loadMatches()">Yeniden dene</button>
   </div>
 
-  <div class="info" id="info">Maç verileri yükleniyor...</div>
-  <div id="matches"></div>
-
-  <button onclick="loadMatches()">Yeniden dene</button>
+  <div id="detailPage" style="display:none">
+    <div class="detailhead">
+      <button onclick="closeDetail()">‹ Geri</button>
+      <div class="detailtitle">Maç Detayı</div>
+    </div>
+    <div id="detailContent"></div>
+  </div>
 
   <div class="footer">
     Veri kaynağı:
     <a href="https://sportscore.com/developers/" target="_blank">Powered by SportScore</a>
     <br><br>
-    Akıl Oyunları • Canlı veri test sürümü
+    Akıl Oyunları • Geliştirme sürümü
   </div>
 </main>
 
 <script>
 let sport = "football";
+let filter = "all";
 let refreshTimer = null;
 let requestNumber = 0;
+let currentMatches = [];
 
 const dateInput = document.getElementById("date");
 const matchArea = document.getElementById("matches");
 const info = document.getElementById("info");
+const listPage = document.getElementById("listPage");
+const detailPage = document.getElementById("detailPage");
+const detailContent = document.getElementById("detailContent");
 
 function localDate() {
   const d = new Date();
@@ -100,14 +139,19 @@ function changeSport(value) {
   loadMatches();
 }
 
+function changeFilter(value) {
+  filter = value;
+  document.querySelectorAll(".filters button").forEach(button=>{
+    button.classList.toggle("active",button.dataset.filter===value);
+  });
+  loadMatches();
+}
+
 function findMatches(data) {
   if (Array.isArray(data)) return data;
   if (!data || typeof data !== "object") return [];
 
-  const keys = [
-    "matches","fixtures","data","results","events",
-    "maçlar","maclar"
-  ];
+  const keys = ["matches","fixtures","data","results","events","maçlar","maclar"];
 
   for (const key of keys) {
     if (Array.isArray(data[key])) return data[key];
@@ -121,7 +165,7 @@ function findMatches(data) {
 
 function getValue(obj, keys, fallback="") {
   for (const key of keys) {
-    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") {
+    if (obj && obj[key] !== undefined && obj[key] !== null && obj[key] !== "") {
       return obj[key];
     }
   }
@@ -130,114 +174,77 @@ function getValue(obj, keys, fallback="") {
 
 function escapeHTML(value) {
   return String(value).replace(/[&<>"']/g,c=>({
-    "&":"&amp;",
-    "<":"&lt;",
-    ">":"&gt;",
-    '"':"&quot;",
-    "'":"&#39;"
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   })[c]);
 }
 
-function statusText(m) {
+function statusInfo(m) {
   const raw = String(getValue(m,[
-    "status","state","match_status","durum"
+    "status","state","match_status","status_type","durum"
   ],"")).toLowerCase();
 
   const label = String(getValue(m,[
     "status_text","statusText","minute","time_status","durum_metni"
   ],"")).trim();
 
-  if (raw.includes("live") || raw.includes("inplay") || raw==="1" || raw.includes("canlı")) {
-    return {text:label || "CANLI",live:true};
+  if (raw.includes("live") || raw.includes("inplay") ||
+      raw==="1" || raw.includes("canlı") || raw.includes("half") || raw==="ht") {
+    return {type:"live",text:label || "CANLI"};
   }
 
   if (raw.includes("finish") || raw==="ft" || raw==="ended" ||
       raw==="complete" || raw.includes("tamam")) {
-    return {text:label || "MS",live:false};
+    return {type:"finished",text:label || "MS"};
   }
 
-  if (raw.includes("half") || raw==="ht") {
-    return {text:label || "İY",live:true};
-  }
+  return {type:"upcoming",text:label || "Başlamadı"};
+}
 
-  return {text:label || "Başlamadı",live:false};
+function matchTime(m) {
+  return getValue(m,["time","datetime","date","start_time","kickoff","zaman"],"");
+}
+
+function displayDate(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("tr-TR",{
+    day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"
+  });
 }
 
 function renderMatches(list) {
   if (!list.length) {
     matchArea.innerHTML =
-      '<div class="empty">Bu tarih için maç verisi bulunamadı.</div>';
+      '<div class="empty">Bu tarih ve kategori için maç bulunamadı.</div>';
     return;
   }
 
   list.sort((a,b)=>{
-    const ta = new Date(getValue(a,[
-      "time","date","datetime","start_time","zaman"
-    ],0)).getTime() || 0;
-
-    const tb = new Date(getValue(b,[
-      "time","date","datetime","start_time","zaman"
-    ],0)).getTime() || 0;
-
+    const ta = new Date(matchTime(a)).getTime() || 0;
+    const tb = new Date(matchTime(b)).getTime() || 0;
     return ta-tb;
   });
 
-  matchArea.innerHTML = list.map(m=>{
-    const home = getValue(m,[
-      "home","home_team","homeTeam","localteam_name",
-      "team_home","ev sahibi"
-    ],"Ev sahibi");
+  matchArea.innerHTML = list.map((m,index)=>{
+    const home = getValue(m,["home","home_team","homeTeam","localteam_name","team_home"],"Ev sahibi");
+    const away = getValue(m,["away","away_team","awayTeam","awayteam_name","team_away"],"Deplasman");
+    const hs = getValue(m,["home_score","homeScore","score_home"],null);
+    const as = getValue(m,["away_score","awayScore","score_away"],null);
+    const league = getValue(m,["competition","league","tournament","competition_name"],"Karşılaşma");
+    const state = statusInfo(m);
+    const score = (hs!==null || as!==null) ? `${hs??"-"} – ${as??"-"}` : "";
+    const time = displayDate(matchTime(m));
 
-    const away = getValue(m,[
-      "away","away_team","awayTeam","awayteam_name",
-      "team_away","deplasman"
-    ],"Deplasman");
-
-    const hs = getValue(m,[
-      "home_score","homeScore","score_home","ev sahibi skoru"
-    ],null);
-
-    const as = getValue(m,[
-      "away_score","awayScore","score_away","deplasman skoru"
-    ],null);
-
-    const league = getValue(m,[
-      "competition","league","tournament",
-      "competition_name","yarışma"
-    ],"Karşılaşma");
-
-    const time = getValue(m,[
-      "time","datetime","date","start_time","zaman"
-    ],"");
-
-    const state = statusText(m);
-    const score = (hs!==null || as!==null)
-      ? `${hs??"-"} – ${as??"-"}`
-      : "";
-
-    let displayTime = "";
-    if (time) {
-      const d = new Date(time);
-      if (!isNaN(d.getTime())) {
-        displayTime = d.toLocaleString("tr-TR",{
-          hour:"2-digit",
-          minute:"2-digit",
-          day:"2-digit",
-          month:"short"
-        });
-      } else {
-        displayTime = String(time);
-      }
-    }
-
-    return `<article class="match">
+    return `<article class="match" onclick="openMatch(${index})">
       <div class="matchtop">
         <span>${escapeHTML(league)}</span>
-        <span class="status ${state.live?"live":""}">${escapeHTML(state.text)}</span>
+        <span class="status ${state.type==="live"?"live":""}">${escapeHTML(state.text)}</span>
       </div>
       <div class="teams">${escapeHTML(home)} – ${escapeHTML(away)}</div>
       ${score ? `<div class="score">${escapeHTML(score)}</div>` : ""}
-      <div class="time">${displayTime ? "Karşılaşma zamanı: "+escapeHTML(displayTime) : ""}</div>
+      <div class="time">${time ? "Karşılaşma zamanı: "+escapeHTML(time) : ""}</div>
+      <div class="smallnote" style="margin-top:10px">Maç detayını açmak için dokun ›</div>
     </article>`;
   }).join("");
 }
@@ -248,11 +255,7 @@ async function requestJSON(url) {
     cache:"no-store",
     headers:{"Accept":"application/json"}
   });
-
-  if (!response.ok) {
-    throw new Error("HTTP " + response.status);
-  }
-
+  if (!response.ok) throw new Error("HTTP " + response.status);
   return await response.json();
 }
 
@@ -260,60 +263,144 @@ async function loadMatches() {
   const current = ++requestNumber;
   const selectedDate = dateInput.value;
 
-  info.textContent = "Gerçek maç verileri alınıyor...";
-  matchArea.innerHTML = '<div class="empty">Maçlar yükleniyor...</div>';
+  info.textContent = "Maç verileri alınıyor...";
+  matchArea.innerHTML = '<div class="loading">Maçlar yükleniyor...</div>';
 
-  const base = "https://sportscore.com";
+  const base = "https://sportscore.com/api/v1/fixtures/";
+  let url = base + "?sport=" + encodeURIComponent(sport) +
+            "&date=" + encodeURIComponent(selectedDate) +
+            "&limit=200";
 
-  const fixturesURL =
-    base + "/api/v1/fixtures/?sport=" +
-    encodeURIComponent(sport) +
-    "&date=" + encodeURIComponent(selectedDate) +
-    "&limit=200";
+  if (filter !== "all") {
+    url += "&status=" + encodeURIComponent(filter);
+  }
 
   try {
-    let data;
-    let source = "Günlük fikstür";
-
-    try {
-      data = await requestJSON(fixturesURL);
-    } catch (firstError) {
-      if (selectedDate !== localDate()) throw firstError;
-
-      source = "Canlı maç yedek servisi";
-
-      const backupURL =
-        base + "/api/widget/matches/?sport=" +
-        encodeURIComponent(sport) +
-        "&limit=50";
-
-      data = await requestJSON(backupURL);
-    }
-
+    const data = await requestJSON(url);
     if (current !== requestNumber) return;
 
-    const list = findMatches(data);
-    renderMatches(list);
+    currentMatches = findMatches(data);
+    renderMatches(currentMatches);
 
-    const updated = new Date().toLocaleTimeString("tr-TR");
+    const labels = {
+      all:"Tüm maçlar",
+      live:"Canlı maçlar",
+      upcoming:"Başlamamış maçlar",
+      finished:"Tamamlanmış maçlar"
+    };
 
     info.textContent =
       (sport==="football" ? "Futbol" : "Basketbol") +
       " • " + selectedDate +
-      " • " + list.length +
-      " maç • " + source +
-      " • Son kontrol: " + updated;
+      " • " + labels[filter] +
+      " • " + currentMatches.length +
+      " maç • Son kontrol: " +
+      new Date().toLocaleTimeString("tr-TR");
 
   } catch (error) {
     if (current !== requestNumber) return;
-
     info.textContent = "Veri bağlantısı kurulamadı: " + error.message;
-
     matchArea.innerHTML =
-      '<div class="empty">' +
-      'SportScore bağlantısı kurulamadı. İnternet bağlantısını kontrol et.' +
-      '<br><br>Bağlantı veya uygulama izinleri kontrol edilmeli.' +
-      '</div>';
+      '<div class="empty">Maç verileri alınamadı. İnternet bağlantısını kontrol edip yeniden deneyin.</div>';
+  }
+}
+
+function openMatch(index) {
+  const m = currentMatches[index];
+  if (!m) return;
+
+  listPage.style.display = "none";
+  detailPage.style.display = "block";
+  detailContent.innerHTML = '<div class="loading">Maç detayları alınıyor...</div>';
+
+  window.scrollTo(0,0);
+  loadMatchDetail(m);
+}
+
+function closeDetail() {
+  detailPage.style.display = "none";
+  listPage.style.display = "block";
+  window.scrollTo(0,0);
+}
+
+function renderDetailValue(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value !== "object") return escapeHTML(value);
+  if (Array.isArray(value)) {
+    if (!value.length) return "";
+    return value.map(item=>{
+      if (typeof item === "object") return renderDetailObject(item);
+      return `<div class="datarow"><span>${escapeHTML(item)}</span></div>`;
+    }).join("");
+  }
+  return renderDetailObject(value);
+}
+
+function renderDetailObject(obj) {
+  if (!obj || typeof obj !== "object") return "";
+  return Object.entries(obj).map(([key,value])=>{
+    if (value === null || value === undefined || value === "") return "";
+    const label = key.replace(/_/g," ");
+    if (typeof value === "object") {
+      const nested = renderDetailValue(value);
+      if (!nested) return "";
+      return `<div class="sectiontitle">${escapeHTML(label)}</div>${nested}`;
+    }
+    return `<div class="datarow">
+      <span>${escapeHTML(label)}</span>
+      <span>${escapeHTML(value)}</span>
+    </div>`;
+  }).join("");
+}
+
+async function loadMatchDetail(m) {
+  const slug = getValue(m,["slug","match_slug","url_slug"],"");
+
+  const home = getValue(m,["home","home_team","homeTeam"],"Ev sahibi");
+  const away = getValue(m,["away","away_team","awayTeam"],"Deplasman");
+  const hs = getValue(m,["home_score","homeScore"],null);
+  const as = getValue(m,["away_score","awayScore"],null);
+  const state = statusInfo(m);
+
+  let html = `<div class="detailbox">
+    <div class="smallnote">${escapeHTML(getValue(m,["competition","league","tournament"],"Karşılaşma"))}</div>
+    <div class="detailteams">
+      <div class="names">${escapeHTML(home)}</div>
+      <div class="bigscore">${hs!==null || as!==null ? escapeHTML(hs??"-")+" – "+escapeHTML(as??"-") : "VS"}</div>
+      <div class="names">${escapeHTML(away)}</div>
+      <div class="status ${state.type==="live"?"live":""}" style="margin-top:12px">${escapeHTML(state.text)}</div>
+      <div class="time">${escapeHTML(displayDate(matchTime(m)))}</div>
+    </div>
+  </div>`;
+
+  if (!slug) {
+    html += `<div class="empty">
+      Bu karşılaşma için veri sağlayıcısı bir maç kimliği (slug) göndermedi.
+      Ayrıntılı maç bilgisi bu kayıt üzerinden açılamıyor.
+    </div>`;
+    detailContent.innerHTML = html;
+    return;
+  }
+
+  try {
+    const url = "https://sportscore.com/api/v1/match/?sport=" +
+      encodeURIComponent(sport) + "&slug=" + encodeURIComponent(slug);
+
+    const data = await requestJSON(url);
+
+    html += `<div class="detailbox">
+      <div class="sectiontitle">Karşılaşma bilgileri</div>
+      ${renderDetailObject(data)}
+    </div>`;
+
+    detailContent.innerHTML = html;
+
+  } catch (error) {
+    html += `<div class="empty">
+      Maçın temel bilgileri gösteriliyor ancak ayrıntı servisi yanıt vermedi.
+      <br><br>${escapeHTML(error.message)}
+    </div>`;
+    detailContent.innerHTML = html;
   }
 }
 
@@ -321,16 +408,19 @@ dateInput.addEventListener("change",loadMatches);
 
 function startRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
-
   refreshTimer = setInterval(()=>{
-    if (document.visibilityState === "visible") {
+    if (document.visibilityState === "visible" &&
+        detailPage.style.display === "none") {
       loadMatches();
     }
   },60000);
 }
 
 document.addEventListener("visibilitychange",()=>{
-  if (document.visibilityState === "visible") loadMatches();
+  if (document.visibilityState === "visible" &&
+      detailPage.style.display === "none") {
+    loadMatches();
+  }
 });
 
 loadMatches();

@@ -12,6 +12,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Kaynak kodu al
         uses: actions/checkout@v4
@@ -27,11 +28,9 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Android SDK kur
-        uses: android-actions/setup-android@v3
-
-      - name: SDK bileşenlerini yükle
+      - name: Android SDK bileşenlerini hazırla
         run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
           yes | sdkmanager --licenses
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
